@@ -27,7 +27,7 @@ end
 if exist('CFG', 'var') == 0
     %    CFG = '../config_file_crib.txt';
     % WSL Octave used
-     % % CFG = '/mnt/e/Work/2505/SCOPE/configure_ajie_wsl.txt';
+    % CFG = '/mnt/e/Work/2505/SCOPE/configure_ajie_wsl.txt';
     % Win MatLab2024a used
    CFG = 'E:\Work\2505\SCOPE\configure_ajie_matlab24.txt';
 end
@@ -39,7 +39,7 @@ if exist('runMode', 'var') == 0
 end
 
 % Initialization routine
-start_time = clock;
+start_time = datetime("now");
 if strcmp(bmiMode, "initialize") || strcmp(runMode, "full")
     % Read the configPath file. Due to using MATLAB compiler, we cannot use run(CFG)
     disp (['Reading config from ', CFG]);
@@ -109,9 +109,25 @@ if strcmp(bmiMode, "initialize") || strcmp(runMode, "full")
     end
 
     %% 3. file names
-    [dummy, X] = xlsread([path_input char(parameter_file)], 'filenames');
-    j = find(~strcmp(X(:, 2), {''}));
-    X = X(j, 1:end);
+    % [dummy, X] = xlsread([path_input char(parameter_file)], 'filenames');
+    % j = find(~strcmp(X(:, 2), {''}));
+    % X = X(j, 1:end);
+    full_filepath = [path_input char(parameter_file)];
+    T = readtable(full_filepath, 'Sheet', 'filenames');
+    if isempty(T) || width(T) < 2
+        warning('Excel is empty or has less than 2 columns. Please check the file.');
+    else
+        second_column_name = T.Properties.VariableNames{2};
+        if iscellstr(T.(second_column_name)) % 如果是 cell of strings
+            j_rows = find(~strcmp(T.(second_column_name), ''));
+        elseif isstring(T.(second_column_name)) % 如果是 string array
+            j_rows = find(~ismissing(T.(second_column_name)) & ~strcmp(T.(second_column_name), ""));
+        else 
+            j_rows = find(~ismissing(T.(second_column_name)));
+        end
+        T_filtered = T(j_rows, :);
+        X = table2cell(T_filtered);
+    end
 
     F = struct('FileID', {'Simulation_Name', 'soil_file', 'leaf_file', 'atmos_file'...
                           'Dataset_dir', 't_file', 'year_file', 'Rin_file', 'Rli_file' ...
@@ -125,12 +141,15 @@ if strcmp(bmiMode, "initialize") || strcmp(runMode, "full")
     end
 
     %% 4. input data
-    [N, X] = xlsread([path_input char(parameter_file)], 'inputdata', '');
-    X  = X(9:end, 1);
+    % [N, X] = xlsread([path_input char(parameter_file)], 'inputdata', '');
+    % X  = X(9:end, 1);
+    excel_all_data = readcell(parameter_filepath, 'Sheet', 'inputdata');
+    X_param_names = excel_all_data(9:end, 1); % 对应原始代码的 X(跳过前8行对原始数据进行裁剪)
+    N_numeric_data = cell2mat(excel_all_data(9:end, 2:end)); % 将相关数值部分转换为矩阵; 对应原文N
 
     % Create a structure holding Scope parameters
     useXLSX = 1; % set it to 1 or 0, the current stemmus-scope does not support 0
-    [ScopeParameters, options] = parameters.loadParameters(options, useXLSX, X, F, N);
+    [ScopeParameters, options] = parameters.loadParameters(options, useXLSX, X_param_names, F, N_numeric_data);
 
     % Define the location information
     ScopeParameters.LAT = SiteProperties.latitude; % latitude
@@ -301,7 +320,9 @@ if strcmp(bmiMode, "initialize") || strcmp(runMode, "full")
     TimeStep = [];
     TEND = TIME + TimeProperties.DELT * TimeProperties.Dur_tot; % Time to be reached at the end of simulation period
     Delt_t0 = Delt_t; % Duration of last time step
-    TOLD_CRIT = [];
+    % TOLD_CRIT = [];
+    % 预分配
+    TOLD_CRIT = zeros(ModelSettings.NN, 1);
 
     % for soil moisture and temperature outputs
     monitorDepthTemperature = ModelSettings.NL:-1:1;
@@ -382,6 +403,12 @@ if strcmp(bmiMode, 'update') || strcmp(runMode, 'full')
             Delt_t = TEND - TIME;  % If Delt_t is changed due to excessive change of state variables, the judgement of the last time step is excuted.
         end
         TIME = TIME + Delt_t;  % The time elapsed since start of simulation
+        
+        % 预分配
+        TimeStep = zeros(endTime, 1);
+        SUMTIME = zeros(endTime, 1);
+        NoTime = zeros(endTime, 1);
+        
         TimeStep(KT, 1) = Delt_t;
         SUMTIME(KT, 1) = TIME;
         Processing = TIME / TEND;
@@ -394,8 +421,18 @@ if strcmp(bmiMode, 'update') || strcmp(runMode, 'full')
         %%%%% Updating the state variables. %%%%%%%%%%%%%%%%%%%%%%%%%%%%
         L_f = 0;  % ignore Freeze/Thaw, see issue 139
         TT_CRIT(ModelSettings.NN) = ModelSettings.T0; % unit K
-        hOLD_frez = [];
+        % 预分配
+        % hOLD_frez = [];
+        hOLD_frez = zeros(ModelSettings.NN, 1);
         if IRPT1 == 0 && IRPT2 == 0 && SoilVariables.ISFT == 0
+
+            % 预分配
+            hOLD_frez = zeros(ModelSettings.NN, 1);
+            TOLD_CRIT = zeros(ModelSettings.NN, 1);
+            DDhDZ = zeros(ModelSettings.NN, KT);
+            TTT = zeros(ModelSettings.NN, KT);
+            SRT = zeros(ModelSettings.NN, KT);
+
             for MN = 1:ModelSettings.NN
                 hOLD_frez(MN) = h_frez(MN);
                 h_frez(MN) = hh_frez(MN);
@@ -436,7 +473,7 @@ if strcmp(bmiMode, 'update') || strcmp(runMode, 'full')
                 iter.counter = 0;
                 LIDF_file            = char(F(22).FileName);
                 if  ~isempty(LIDF_file)
-                    canopy.lidf     = dlmread([path_input, 'leafangles/', LIDF_file], '', 3, 0);
+                    canopy.lidf = readmatrix(fullFilePath, 'HeaderLines', 3);
                 else
                     canopy.lidf     = equations.leafangles(canopy.LIDFa, canopy.LIDFb);    % This is 'ladgen' in the original SAIL model,
                 end
@@ -727,6 +764,29 @@ if strcmp(bmiMode, 'update') || strcmp(runMode, 'full')
 
         if IRPT1 == 0 && IRPT2 == 0
             if KT        % In case last time step is not convergent and needs to be repeated.
+                % 预分配
+                hhh  = zeros(ModelSettings.NL, KT);
+                qlh  = zeros(ModelSettings.NL, KT);
+                qlt  = zeros(ModelSettings.NL, KT);
+                qla  = zeros(ModelSettings.NL, KT);
+                qvh  = zeros(ModelSettings.NL, KT);
+                qvt  = zeros(ModelSettings.NL, KT);
+                qva  = zeros(ModelSettings.NL, KT);
+                qtot = zeros(ModelSettings.NL, KT);
+                Theta_LLL = zeros(ModelSettings.NL, ModelSettings.nD, KT);
+                Theta_UUU = zeros(ModelSettings.NL, ModelSettings.nD, KT);
+                Theta_III = zeros(ModelSettings.NL, ModelSettings.nD, KT);
+                Sim_Theta_U = zeros(KT, length(monitorDepthSoilMoisture));
+                Sim_Temp = zeros(KT, length(monitorDepthTemperature));
+                Sim_hh = zeros(KT, length(monitorDepthSoilMoisture));
+                Sim_qlh = zeros(KT, length(monitorDepthSoilMoisture));
+                Sim_qlt = zeros(KT, length(monitorDepthSoilMoisture));
+                Sim_qla = zeros(KT, length(monitorDepthSoilMoisture));
+                Sim_qvh = zeros(KT, length(monitorDepthSoilMoisture));
+                Sim_qvt = zeros(KT, length(monitorDepthSoilMoisture));
+                Sim_qva = zeros(KT, length(monitorDepthSoilMoisture));
+                Sim_qtot = zeros(KT, length(monitorDepthSoilMoisture));
+
                 for i = 1:ModelSettings.NL
                     hhh(i, KT) = SoilVariables.hh(i);
                     qlh(i, KT) = transpose(EnergyVariables.QL_h(i));
@@ -759,6 +819,7 @@ if strcmp(bmiMode, 'update') || strcmp(runMode, 'full')
                 Sim_qtot(KT, 1:length(monitorDepthSoilMoisture)) = qtot(monitorDepthSoilMoisture, KT);
             end
             if (TEND - TIME) < 1E-3
+                
                 for i = 1:ModelSettings.NN
                     hOLD(i) = SoilVariables.h(i);
                     SoilVariables.h(i) = SoilVariables.hh(i);
@@ -831,7 +892,7 @@ if strcmp(bmiMode, 'finalize') || strcmp(runMode, 'full')
 end
 
 % Calculate the total simulatiom time, added by mostafa
-end_time = clock;
-simtime_min = etime(end_time, start_time) / 60;
+end_time = datetime('now');
+simtime_min = minutes(end_time - start_time);
 simtime_hr = simtime_min / 60;
 disp(['Simulation time is : ' num2str(simtime_hr) ' hrs (' num2str(simtime_min) ' minutes)']);

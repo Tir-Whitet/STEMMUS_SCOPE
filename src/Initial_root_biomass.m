@@ -31,8 +31,9 @@ function [Rl, Ztot] = Initial_root_biomass(RTB, DeltZ_R, rroot, ML, initialLandc
     end
 
     Rltot = RTB / R_C / root_den / (pi * (rroot^2)); %% %% root length index [m root / m^2 PFT]
-    Ztot = cumsum(DeltZ_R', 1);
+    Ztot = cumsum(DeltZ_R', 1);  %#ok<UDIM>
 
+    ri = zeros(1, ML);
     for i = 1:ML
         if i == 1
             ri(i) = (1 - beta.^(Ztot(i) / 2));

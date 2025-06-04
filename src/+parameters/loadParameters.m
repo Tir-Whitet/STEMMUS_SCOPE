@@ -16,26 +16,40 @@ function [ScopeParameters, Options] = loadParameters(Options, use_xlsx, ExcelDat
                            };
 
     % create an empty structure with field names of ScopeParametersNames
-    ScopeParameters = cell2struct(cell(1, length(ScopeParametersNames)), ScopeParametersNames, 2);
-
+    % ScopeParameters = cell2struct(cell(1, length(ScopeParametersNames)), ScopeParametersNames, 2);
+    ScopeParameters = cell2struct(repmat({[]}, 1, length(ScopeParametersNames)), ScopeParametersNames, 2);
     for i = 1:length(ScopeParametersNames)
         name = ScopeParametersNames{i};
-        j = find(strcmp(strtok(ExcelData(:, 1)), name));
-        if ~use_xlsx
-            cond = isnan(scopeInput(j + 1));
-        else
-            cond = sum(~isnan(scopeInput(j, :))) < 1;
+        logical_j = strcmp(strtok(ExcelData(:, 1)), name);
+        j = find(logical_j);
+
+        cond = false; % 默认不缺失
+        if ~isempty(j) % 确保 j 存在，避免索引错误
+            if ~use_xlsx
+                % 确保 j+1 不超出 scopeInput 的范围
+                if (j + 1) <= numel(scopeInput)
+                    cond = isnan(scopeInput(j + 1));
+                else
+                    cond = true; % 如果索引超出范围，也认为是缺失
+                end
+            else
+                % 确保 j 不超出 scopeInput 的行范围
+                if j <= size(scopeInput, 1)
+                    cond = sum(~isnan(scopeInput(j, :))) < 1;
+                else
+                    cond = true; % 如果索引超出范围，也认为是缺失
+                end
+            end
         end
+
         if isempty(j) || cond
             if strcmp(name, 'Cab')
-                warning('warning: input "', name, '" not provided in input spreadsheet...', ...
-                        'I will use 0.25*Cab instead');
+                warning('warning: input "%s" not provided in input spreadsheet...I will use 0.25*Cab instead', name);
                 Options.Cca_function_of_Cab = 1;
             elseif ~(Options.simulation == 1) && (strcmp(name, 'Rin') || strcmp(name, 'Rli'))
-                warning('warning: input "', name, '" not provided in input spreadsheet...', ...
-                        'I will use the MODTRAN spectrum as it is');
+                warning('warning: input "%s" not provided in input spreadsheet... I will use the MODTRAN spectrum as it is', name);
             elseif Options.simulation == 1 || (Options.simulation ~= 1 && (i < 46 || i > 50))
-                warning('warning: input "', name, '" not provided in input spreadsheet');
+                warning('warning: input "%s" not provided in input spreadsheet', name);
                 if Options.simulation == 1 && (strcmp(name, 'Cab') || strcmp(name, 'Vcmo') || strcmp(name, 'LAI') || strcmp(name, 'hc') || strcmp(name, 'SMC') || (i > 29 && i < 37))
                     fprintf(1, '%s %s %s\n', 'I will look for the values in Dataset Directory "', char(ForcingData(5).FileName), '"');
                 elseif strcmp(name, 'zo') || strcmp(name, 'd')
@@ -43,7 +57,7 @@ function [ScopeParameters, Options] = loadParameters(Options, use_xlsx, ExcelDat
                     Options.calc_zo = 1;
                 elseif i > 38 && i < 44
                     fprintf(1, '%s %s %s\n', 'will use the provided zo and d');
-                    oOptions.calc_zo = 0;
+                    Options.calc_zo = 0;
                 elseif ~(Options.simulation == 1 && (strcmp(name, 'Rin') || strcmp(name, 'Rli')))
                     fprintf(1, '%s \n', 'this input is required: SCOPE ends');
                     return

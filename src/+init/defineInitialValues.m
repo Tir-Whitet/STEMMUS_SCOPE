@@ -3,7 +3,7 @@ function InitialValues = defineInitialValues(Dur_tot, ModelSettings)
 
     %}
     % get model settings
-    NN = ModelSettings.NN; % Number of nodes;
+    % NN = ModelSettings.NN; % Number of nodes;
     mN = ModelSettings.mN;
     mL = ModelSettings.mL; % Number of elements. Prevending the exceeds of size of arraies;
     nD = ModelSettings.nD;

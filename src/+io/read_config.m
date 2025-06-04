@@ -9,18 +9,22 @@ function [InputPath, OutputPath, InitialConditionPath, FullCSVfiles] = read_conf
     config_paths = config{2};
 
     %% find the required path by model
-    indx = find(strcmp(config_vars, 'InputPath'));
-    InputPath = config_paths{indx};
+    logical_idx = strcmp(config_vars, 'InputPath');
+    InputPath = config_paths{logical_idx}; 
 
-    indx = find(strcmp(config_vars, 'OutputPath'));
-    OutputPath = config_paths{indx};
+    logical_idx = strcmp(config_vars, 'OutputPath');
+    OutputPath = config_paths{logical_idx};
 
-    indx = find(strcmp(config_vars, 'InitialConditionPath'));
-    InitialConditionPath = config_paths{indx};
+    % indx = find(strcmp(config_vars, 'InitialConditionPath'));
+    % InitialConditionPath = config_paths{indx};
+    logical_idx = strcmp(config_vars, 'InitialConditionPath');
+    InitialConditionPath = config_paths{logical_idx};
 
-    indx = find(strcmp(config_vars, 'FullCSVfiles'));
-    if isempty(indx)
-        FullCSVfiles = 1;
+    % FullCSVfiles
+    logical_idx = strcmp(config_vars, 'FullCSVfiles');
+    if ~any(logical_idx) % 检查逻辑数组中是否有任何 true (即是否找到了 'FullCSVfiles')
+        FullCSVfiles = 1; % 如果没找到，设置为默认值 1
     else
-        FullCSVfiles = str2num(config_paths{indx});
+        % 如果找到，使用逻辑数组索引获取值，并转换为数字
+        FullCSVfiles = str2double(config_paths{logical_idx}); 
     end

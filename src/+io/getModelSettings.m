@@ -65,8 +65,10 @@ function ModelSettings = getModelSettings()
     if ~ModelSettings.Eqlspace
         [DeltZ, DeltZ_R, NL, ML] = Dtrmn_Z(ModelSettings.NL, ModelSettings.Tot_Depth);
     else
+        DeltZ = zeros(1, ModelSettings.NL); 
+        equal_thickness = ModelSettings.Tot_Depth / ModelSettings.NL;
         for i = 1:ModelSettings.NL
-            DeltZ(i) = ModelSettings.Tot_Depth / ModelSettings.NL;
+            DeltZ(i) = equal_thickness;
         end
     end
     ModelSettings.NL = NL;
