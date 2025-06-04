@@ -25,7 +25,11 @@ end
 
 % set CFG to a path if it is not defined
 if exist('CFG', 'var') == 0
-    CFG = '../config_file_crib.txt';
+    %    CFG = '../config_file_crib.txt';
+    % WSL Octave used
+     % % CFG = '/mnt/e/Work/2505/SCOPE/configure_ajie_wsl.txt';
+    % Win MatLab2024a used
+   CFG = 'E:\Work\2505\SCOPE\configure_ajie_matlab24.txt';
 end
 
 % set runMode to "full" if it is not defined

@@ -27,6 +27,7 @@ function plots(Output_dir)
             set(gca, 'FontSize', 4);
         end
         exportgraphics(figure(i), [path1_ 'Fluxes.jpg']);
+        % saveas(figure(i),[path1_,'Fluxes.fig']);
         close;
     end
     for i = 2
@@ -42,6 +43,7 @@ function plots(Output_dir)
             set(gca, 'FontSize', 2);
         end
         exportgraphics(figure(i), [path1_ 'Soil temperature.jpg']);
+        % saveas(figure(i),[path1_,'Soil temperature.fig']);
         close;
     end
     for i = 3
@@ -57,6 +59,7 @@ function plots(Output_dir)
             set(gca, 'FontSize', 2);
         end
         exportgraphics(figure(i), [path1_ 'Soil moisture.jpg']);
+        % saveas(figure(i),[path1_,'Soil moisture.fig']);
         close;
     end
 end
